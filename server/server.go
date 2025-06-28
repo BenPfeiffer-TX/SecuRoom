@@ -13,6 +13,10 @@ type message struct {
 	Timestamp time.Time
 }
 
+// var messageChannel chan message
+// for now will just handle strings until i implement proper message struct data sending
+var messageChannel chan string
+
 func main() {
 	//initialize server
 	/*
@@ -24,17 +28,24 @@ func main() {
 		persistent storage of chat log
 		security preferences (rate limits etc)
 	*/
+
+	messageChannel = make(chan string)
 	server, err := net.Listen("tcp", ":8080")
 	defer server.Close()
 	if err != nil {
 		panic(err)
 	}
 
+	//separate thread for printing out message channel
+	go func() {
+		for msg := range messageChannel {
+			fmt.Println("Received: ", msg)
+		}
+	}()
+	//main loop, handling connections
 	for {
 		conn, err := server.Accept()
 		if err != nil {
-			//some issue with returning next connection to listener
-			//TBD how to handle
 			log.Println("failed to accept connection, ", err.Error())
 		}
 
@@ -61,5 +72,10 @@ func handleConnection(conn net.Conn) {
 		log.Println(err.Error())
 		return
 	}
-	fmt.Printf("received: %s\n", string(buffer[:l]))
+	//the contents of buffer are not a mesasge:
+	//tbd
+
+	//the contents of buffer are a message for the message channel:
+	message := string(buffer[:l])
+	messageChannel <- message
 }
