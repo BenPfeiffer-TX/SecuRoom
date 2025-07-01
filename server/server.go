@@ -48,7 +48,6 @@ func main() {
 		if err != nil {
 			log.Println("failed to accept connection, ", err.Error())
 		}
-
 		go handleConnection(conn)
 	}
 }
@@ -67,15 +66,22 @@ func handleConnection(conn net.Conn) {
 	fmt.Println("connection received from: ", conn.LocalAddr())
 
 	buffer := make([]byte, 1024)
-	l, err := conn.Read(buffer)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	//the contents of buffer are not a mesasge:
-	//tbd
+	for {
+		l, err := conn.Read(buffer)
+		if err != nil {
+			log.Println(err.Error())
+			if err.Error() == "EOF" {
+				break
+			}
+		}
+		if l == 0 {
+			//buffer is empty, we keep looping waiting for content
+			continue
+		}
+		//the contents of buffer are not a message: tbd
 
-	//the contents of buffer are a message for the message channel:
-	message := string(buffer[:l])
-	messageChannel <- message
+		//the contents of buffer are a message:
+		message := string(buffer[:l])
+		messageChannel <- message
+	}
 }
