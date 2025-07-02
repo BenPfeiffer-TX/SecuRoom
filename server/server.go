@@ -15,7 +15,7 @@ type message struct {
 
 // var messageChannel chan message
 // for now will just handle strings until i implement proper message struct data sending
-var messageChannel chan string
+var messageChannel chan message
 
 func main() {
 	//initialize server
@@ -29,7 +29,7 @@ func main() {
 		security preferences (rate limits etc)
 	*/
 
-	messageChannel = make(chan string)
+	messageChannel = make(chan message)
 	server, err := net.Listen("tcp", ":8080")
 	defer server.Close()
 	if err != nil {
@@ -39,7 +39,7 @@ func main() {
 	//separate thread for printing out message channel
 	go func() {
 		for msg := range messageChannel {
-			fmt.Println("Received: ", msg)
+			fmt.Println("Received: ", msg.Content, msg.Timestamp.Format(time.DateTime))
 		}
 	}()
 	//main loop, handling connections
@@ -81,7 +81,7 @@ func handleConnection(conn net.Conn) {
 		//the contents of buffer are not a message: tbd
 
 		//the contents of buffer are a message:
-		message := string(buffer[:l])
-		messageChannel <- message
+		content := string(buffer[:l])
+		messageChannel <- message{"anon", content, time.Now()}
 	}
 }
