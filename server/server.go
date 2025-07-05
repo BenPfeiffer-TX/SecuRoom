@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -8,6 +9,8 @@ import (
 )
 
 type message struct {
+	Type string //supported types so far: chat,
+	//	Sender    conn.Addr
 	Name      string
 	Content   string
 	Timestamp time.Time
@@ -15,7 +18,7 @@ type message struct {
 
 // var messageChannel chan message
 // for now will just handle strings until i implement proper message struct data sending
-var messageChannel chan message
+var chatChannel chan message
 
 func main() {
 	//initialize server
@@ -29,7 +32,7 @@ func main() {
 		security preferences (rate limits etc)
 	*/
 
-	messageChannel = make(chan message)
+	chatChannel = make(chan message)
 	server, err := net.Listen("tcp", ":8080")
 	defer server.Close()
 	if err != nil {
@@ -38,8 +41,8 @@ func main() {
 
 	//separate thread for printing out message channel
 	go func() {
-		for msg := range messageChannel {
-			fmt.Println("Received: ", msg.Content, msg.Timestamp.Format(time.DateTime))
+		for msg := range chatChannel {
+			fmt.Println("Received: ", msg.Content, msg.Timestamp.Format(time.TimeOnly))
 		}
 	}()
 	//main loop, handling connections
@@ -54,6 +57,7 @@ func main() {
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
+	var receivedMessage message
 	//we received a connection, now we handle it
 	/*
 		todo:
@@ -78,10 +82,34 @@ func handleConnection(conn net.Conn) {
 			//buffer is empty, we keep looping waiting for content
 			continue
 		}
-		//the contents of buffer are not a message: tbd
+		//unmarshal contents of received message from client
+		//content := string(buffer[:l])
+		if err = json.Unmarshal(buffer[:l], &receivedMessage); err != nil {
+			//issue decoding JSON
+			log.Println("error unmarshalling:", err)
+			continue
+		}
+		//message is now unmarshaled
+		//for now, we just echo it back
+		response := message{Type: "echo",
+			//	Sender:    receivedMessage.Sender,
+			Name:      receivedMessage.Name,
+			Content:   receivedMessage.Content,
+			Timestamp: time.Now()}
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			//issue marshalling response
+			log.Println(err.Error())
+			continue
+		}
+		conn.Write(jsonResponse)
 
-		//the contents of buffer are a message:
-		content := string(buffer[:l])
-		messageChannel <- message{"anon", content, time.Now()}
+		//switch on message type to determine action
+		switch receivedMessage.Type {
+		case "chat":
+			chatChannel <- receivedMessage
+		default:
+			log.Println("received unknown message of type: ", receivedMessage.Type)
+		}
 	}
 }
