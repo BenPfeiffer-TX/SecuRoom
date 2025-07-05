@@ -22,7 +22,7 @@ type message struct {
 	Timestamp time.Time
 }
 
-func sendMessage(input *widget.Entry, chatwindow binding.ExternalStringList, conn net.Conn) {
+func sendMessage(input *widget.Entry, conn net.Conn) {
 	text := input.Text
 	sendingMessage := message{Type: "chat", Name: "anon", Content: text, Timestamp: time.Now()}
 	sendingJSON, err := json.Marshal(sendingMessage)
@@ -31,20 +31,19 @@ func sendMessage(input *widget.Entry, chatwindow binding.ExternalStringList, con
 		log.Println(err.Error())
 		return
 	}
-	_, err = conn.Write(sendingJSON) //[]byte(text))
+	_, err = conn.Write(sendingJSON)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
-	//for testing: we write our sent message to the chatwindow
-	chatwindow.Append(text)
 	//blank out text field after sending
 	input.SetText("")
 	return
 }
 
-func receiveConnection(conn net.Conn) {
+func receiveConnection(chatwindow binding.ExternalStringList, conn net.Conn) {
 	//function for receiving data from server
+	var receivedMessage message
 	buffer := make([]byte, 1024)
 	for {
 		l, err := conn.Read(buffer)
@@ -59,6 +58,20 @@ func receiveConnection(conn net.Conn) {
 			continue
 		}
 		//	content := string(buffer[:l])
+		//we unmarshal what the server sent us
+		if err = json.Unmarshal(buffer[:l], &receivedMessage); err != nil {
+			//issue decoding JSON
+			log.Println("error unmarshalling:", err.Error())
+			return
+		}
+		switch receivedMessage.Type {
+		case "echo":
+			//server is echoing our previous message
+			chatwindow.Append(receivedMessage.Content)
+		default:
+			//server sent us some unexpected message type
+			log.Println("received unknown message of type: ", receivedMessage.Type)
+		}
 	}
 }
 
@@ -69,8 +82,6 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	go receiveConnection(conn)
-
 	chatlog := []string{}
 	chatwindow := binding.BindStringList(&chatlog)
 	/*
@@ -80,7 +91,7 @@ func main() {
 	a := app.New()
 	windowName := "SecuRoom chat client"
 	w := a.NewWindow(windowName)
-	message := widget.NewLabel(windowName) //change this to be IP of connected server?
+	message := widget.NewLabel(conn.RemoteAddr().String())
 	input := widget.NewEntry()
 
 	chat := widget.NewListWithData(chatwindow,
@@ -96,7 +107,10 @@ func main() {
 	}()
 
 	input.SetPlaceHolder("type here")
-	send := widget.NewButton("send", func() { sendMessage(input, chatwindow, conn) })
+
+	send := widget.NewButton("send", func() { sendMessage(input, conn) })
+	go receiveConnection(chatwindow, conn)
+
 	content := container.NewBorder(message, input, nil, send, chat)
 	w.SetContent(content)
 	w.ShowAndRun()

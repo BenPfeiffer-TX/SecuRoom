@@ -16,8 +16,6 @@ type message struct {
 	Timestamp time.Time
 }
 
-// var messageChannel chan message
-// for now will just handle strings until i implement proper message struct data sending
 var chatChannel chan message
 
 func main() {
@@ -42,7 +40,7 @@ func main() {
 	//separate thread for printing out message channel
 	go func() {
 		for msg := range chatChannel {
-			fmt.Println("Received: ", msg.Content, msg.Timestamp.Format(time.TimeOnly))
+			fmt.Println(msg.Content, msg.Timestamp.Format(time.TimeOnly))
 		}
 	}()
 	//main loop, handling connections
@@ -62,8 +60,6 @@ func handleConnection(conn net.Conn) {
 	/*
 		todo:
 		check banned IPs?
-		take initialization package (name, etc)?
-		do handshake / send response
 		establish encryption key?
 		send contents of chat channel
 	*/
@@ -86,7 +82,7 @@ func handleConnection(conn net.Conn) {
 		//content := string(buffer[:l])
 		if err = json.Unmarshal(buffer[:l], &receivedMessage); err != nil {
 			//issue decoding JSON
-			log.Println("error unmarshalling:", err)
+			log.Println("error unmarshalling:", err.Error())
 			continue
 		}
 		//message is now unmarshaled
