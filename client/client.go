@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log"
 	"net"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -129,12 +130,23 @@ func runtime() {
 
 func connectTCP(input *widget.Entry) (net.Conn, error) {
 	//TCP server stuff
-	conn, err := net.Dial("tcp", ":8080")
-	if err != nil {
-		fmt.Println(err.Error())
-		return nil, err
+	inputs := strings.Split(input.Text, ":")
+	switch {
+	//check inputs for errors
+	case len(inputs) == 1:
+		return nil, errors.New("missing port")
+	case inputs[1] == "":
+		return nil, errors.New("missing port")
+	default:
+		//input doesnt have any obvious errors, attempting connection
+		conn, err := net.Dial("tcp", input.Text)
+		if err != nil {
+			//connecting failed
+			log.Println(err.Error())
+			return nil, err
+		}
+		return conn, nil
 	}
-	return conn, nil
 }
 
 func main() {
@@ -146,5 +158,5 @@ func main() {
 }
 
 func tidyUp() {
-	fmt.Println("cleaning up after closing application")
+	log.Println("cleaning up after closing application")
 }
