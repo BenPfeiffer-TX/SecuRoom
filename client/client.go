@@ -25,6 +25,10 @@ type message struct {
 
 func sendMessage(input *widget.Entry, conn net.Conn) {
 	text := input.Text
+	if text == "" {
+		//user is trying to send an empty message
+		return
+	}
 	sendingMessage := message{Type: "chat", Name: "anon", Content: text, Timestamp: time.Now()}
 	sendingJSON, err := json.Marshal(sendingMessage)
 	if err != nil {
@@ -145,6 +149,7 @@ func connectTCP(input *widget.Entry) (net.Conn, error) {
 			log.Println(err.Error())
 			return nil, err
 		}
+		input.SetText("")
 		return conn, nil
 	}
 }
