@@ -9,7 +9,7 @@ import (
 )
 
 type message struct {
-	Type string //supported types so far: chat,
+	Type string //supported types so far: echo, message
 	//	Sender    conn.Addr
 	Name      string
 	Content   string
@@ -17,6 +17,7 @@ type message struct {
 }
 
 var chatChannel chan message
+var chatLog []message
 
 func main() {
 	//initialize server
@@ -31,6 +32,7 @@ func main() {
 	*/
 
 	chatChannel = make(chan message)
+
 	server, err := net.Listen("tcp", ":8080")
 	defer server.Close()
 	if err != nil {
@@ -38,11 +40,14 @@ func main() {
 	}
 
 	//separate thread for printing out message channel
+
 	go func() {
 		for msg := range chatChannel {
+			chatLog = append(chatLog, msg)
 			fmt.Println(msg.Content, msg.Timestamp.Format(time.TimeOnly))
 		}
 	}()
+
 	//main loop, handling connections
 	for {
 		conn, err := server.Accept()
@@ -64,6 +69,8 @@ func handleConnection(conn net.Conn) {
 		send contents of chat channel
 	*/
 	fmt.Println("connection received from: ", conn.LocalAddr())
+	//spawn separate thread for relaying any received messages to open connections
+	go relayMessages(conn)
 
 	buffer := make([]byte, 1024)
 	for {
@@ -86,26 +93,40 @@ func handleConnection(conn net.Conn) {
 			continue
 		}
 		//message is now unmarshaled
-		//for now, we just echo it back
-		response := message{Type: "echo",
-			//	Sender:    receivedMessage.Sender,
-			Name:      receivedMessage.Name,
-			Content:   receivedMessage.Content,
-			Timestamp: time.Now()}
-		jsonResponse, err := json.Marshal(response)
-		if err != nil {
-			//issue marshalling response
-			log.Println(err.Error())
-			continue
-		}
-		conn.Write(jsonResponse)
+
+		/*
+			response := message{Type: "echo",
+				//	Sender:    receivedMessage.Sender,
+				Name:      receivedMessage.Name,
+				Content:   receivedMessage.Content,
+				Timestamp: time.Now()}
+			jsonResponse, err := json.Marshal(response)
+			if err != nil {
+				//issue marshalling response
+				log.Println(err.Error())
+				continue
+			}
+			conn.Write(jsonResponse)
+		*/
 
 		//switch on message type to determine action
 		switch receivedMessage.Type {
-		case "chat":
+		case "message":
 			chatChannel <- receivedMessage
 		default:
 			log.Println("received unknown message of type: ", receivedMessage.Type)
+		}
+	}
+}
+
+func relayMessages(conn net.Conn) {
+	i := len(chatLog) //length of chat at the time of connecting
+	for {
+		if len(chatLog) > i {
+			//there are new messages in the chat
+			msg, _ := json.Marshal(chatLog[i])
+			conn.Write(msg)
+			i++
 		}
 	}
 }
