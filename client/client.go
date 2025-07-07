@@ -75,13 +75,7 @@ func receiveConnection(chatwindow binding.ExternalStringList, conn net.Conn) {
 	}
 }
 
-func main() {
-	//TCP server stuff
-	conn, err := net.Dial("tcp", ":8080")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+func runtime() {
 	chatlog := []string{}
 	chatwindow := binding.BindStringList(&chatlog)
 	/*
@@ -91,8 +85,6 @@ func main() {
 	a := app.New()
 	windowName := "SecuRoom chat client"
 	w := a.NewWindow(windowName)
-	message := widget.NewLabel(conn.RemoteAddr().String())
-	input := widget.NewEntry()
 
 	chat := widget.NewListWithData(chatwindow,
 		func() fyne.CanvasObject { return widget.NewLabel("") },
@@ -105,22 +97,54 @@ func main() {
 			fyne.Do(func() { chat.UnselectAll() })
 		}
 	}()
+	var conn net.Conn
+	var err error
 
+	input := widget.NewEntry()
 	input.SetPlaceHolder("type here")
-
 	send := widget.NewButton("send", func() { sendMessage(input, conn) })
-	go receiveConnection(chatwindow, conn)
 
-	content := container.NewBorder(message, input, nil, send, chat)
-	w.SetContent(content)
-	w.ShowAndRun()
-	//todo: key detection for pressing enter
-	//make a toolbar for connecting / disconnecting
-	//figure out container layout changes
-	tidyUp(conn)
+	connect := widget.NewButton("connect", func() {
+		conn, err = connectTCP(input)
+		if err != nil {
+			//connection failed, handle it
+			log.Println(err.Error())
+			return
+		}
+		message := widget.NewLabel(conn.RemoteAddr().String())
+		contentConnected := container.NewBorder(message, input, nil, send, chat)
+		go receiveConnection(chatwindow, conn)
+
+		//connection succeeded, now we display contentConnected
+		w.SetContent(contentConnected)
+		w.Show()
+	})
+
+	contentStart := container.NewVBox(input, connect)
+	w.SetContent(contentStart)
+	w.Show()
+	a.Run()
+	defer conn.Close()
 }
 
-func tidyUp(conn net.Conn) {
+func connectTCP(input *widget.Entry) (net.Conn, error) {
+	//TCP server stuff
+	conn, err := net.Dial("tcp", ":8080")
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil, err
+	}
+	return conn, nil
+}
+
+func main() {
+
+	runtime()
+	//todo: key detection for pressing enter
+	//make a toolbar for connecting / disconnecting
+	tidyUp()
+}
+
+func tidyUp() {
 	fmt.Println("cleaning up after closing application")
-	conn.Close()
 }
